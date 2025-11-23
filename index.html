@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>40가지 스킬 운명 주사위 턴제 배틀</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+        }
+        .game-container {
+            max-width: 900px;
+            margin: 0 auto;
+            min-height: 100vh;
+        }
+        .stat-bar {
+            transition: width 0.3s ease-in-out;
+        }
+        .skill-button:disabled {
+            filter: grayscale(80%);
+            cursor: not-allowed;
+        }
+        /* Custom scrollbar for log area */
+        #log-area::-webkit-scrollbar {
+            width: 6px;
+        }
+        #log-area::-webkit-scrollbar-thumb {
+            background: #4f46e5;
+            border-radius: 3px;
+        }
+        #log-area::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="game-container flex flex-col items-center py-4">
+        <h1 class="text-3xl font-extrabold mb-4 text-white text-center sm:text-4xl">🎲 45가지 스킬 운명 듀얼</h1>
+        <p id="current-turn-info" class="text-xl font-bold mb-6 text-yellow-300 text-center"></p>
+        
+        <!-- Main Game Area -->
+        <div id="game-area" class="w-full bg-slate-800 p-4 sm:p-6 rounded-2xl shadow-2xl border-4 border-indigo-700">
+
+            <!-- Player Panels -->
+            <div class="flex flex-col sm:flex-row justify-between gap-4 mb-6">
+                <!-- Player 1 Panel -->
+                <div id="player-panel-0" class="w-full sm:w-1/2 p-4 rounded-xl shadow-lg border border-purple-500 bg-slate-700">
+                    <h2 class="text-2xl font-bold text-indigo-300 mb-2">🛡️ 플레이어 1</h2>
+                    <div id="stats-0"></div>
+                </div>
+
+                <!-- Player 2 Panel -->
+                <div id="player-panel-1" class="w-full sm:w-1/2 p-4 rounded-xl shadow-lg border border-red-500 bg-slate-700">
+                    <h2 class="text-2xl font-bold text-red-300 mb-2">⚔️ 플레이어 2</h2>
+                    <div class="text-lg text-gray-400">방어력: <span id="defense-1">10</span></div>
+                    <div id="stats-1"></div>
+                </div>
+            </div>
+
+            <!-- Destiny Dice Info -->
+            <div id="dice-info" class="bg-gray-900 p-3 rounded-xl text-center mb-4 border border-yellow-500">
+                <span id="dice-text" class="text-lg font-semibold text-yellow-400">운명 주사위: 대기 중...</span>
+            </div>
+            
+            <!-- Field Effect Info -->
+            <div id="field-info" class="bg-gray-900 p-3 rounded-xl text-center mb-6 border border-purple-500">
+                <span id="field-text" class="text-lg font-semibold text-purple-400">필드 상태: 없음</span>
+            </div>
+
+
+            <!-- Log Area -->
+            <div id="log-area" class="h-40 overflow-y-auto bg-gray-900 p-3 rounded-lg text-sm mb-6 border border-gray-600">
+                <p class="text-yellow-400">게임을 시작하려면 45가지 스킬 중 5가지를 선택하세요.</p>
+            </div>
+
+            <!-- Skill Buttons (Current Player) -->
+            <div id="current-player-skills" class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <!-- Buttons will be injected here -->
+            </div>
+            
+        </div>
+
+        <!-- Skill Selection Modal -->
+        <div id="setup-modal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-20">
+            <div class="bg-slate-800 p-6 rounded-xl shadow-2xl w-full max-w-lg border-4 border-indigo-500">
+                <h2 id="setup-title" class="text-2xl font-bold text-white mb-4">플레이어 1 스킬 선택 (5/5)</h2>
+                <p class="text-sm text-gray-400 mb-4">45가지 스킬 중 5가지를 선택하세요.</p>
+                <div id="skill-selection-grid" class="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-2">
+                    <!-- All 45 skills go here -->
+                </div>
+                <button id="confirm-skills-btn" onclick="confirmSkillSelection()" disabled class="mt-6 w-full py-3 rounded-lg font-bold text-gray-900 bg-gray-500 transition duration-200">
+                    선택 완료 (5/5)
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Over Message -->
+        <div id="game-message" class="hidden fixed inset-0 bg-gray-900 bg-opacity-95 flex flex-col items-center justify-center p-8 z-30">
+            <div class="bg-indigo-700 p-8 rounded-xl shadow-2xl text-center">
+                <h2 id="final-result" class="text-3xl font-bold text-white mb-4"></h2>
+                <p id="final-message" class="text-lg text-indigo-100 mb-6"></p>
+                <button onclick="resetGame()" class="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold py-3 px-6 rounded-lg transition duration-200 shadow-md">
+                    다시 시작
+                </button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- 게임 상태 및 데이터 정의 ---
+    const MAX_HP = 1000;
+    const BASE_MAX_MP = 100; // 기본 최대 MP
+    const BASE_ATTACK = 100;
+    
+    // Skill IDs 1-45 (45가지 스킬)
+    const SKILLS = [
+        { id: 1, name: "일반 공격", cost: 0, damage_multiplier: 1.0, type: "attack", effect_desc: "기본 공격. MP를 소모하지 않습니다." },
+        { id: 2, name: "연속 베기", cost: 15, damage_multiplier: 0.6, type: "attack_multihit", hits: 3, effect_desc: "약한 공격을 3회 실시합니다." },
+        { id: 3, name: "보호의 기도", cost: 30, damage_multiplier: 0, type: "buff", effect_desc: "2턴 동안 받는 피해 30% 감소 버프를 얻습니다. (피해 감소)" },
+        { id: 4, name: "영혼 흡수", cost: 40, damage_multiplier: 1.5, type: "attack_heal", effect_desc: "피해의 50%를 체력으로 회복합니다." },
+        { id: 5, name: "마법 폭주", cost: 50, damage_multiplier: 2.5, type: "attack_selfdmg", effect_desc: "강력한 피해를 입히지만, 최대 HP의 10%를 자해합니다." },
+        { id: 6, name: "정화의 파동", cost: 35, damage_multiplier: 0, type: "heal_cleanse", effect_desc: "최대 HP의 15%를 회복하고 해로운 효과를 1개 제거합니다." },
+        { id: 7, name: "기력 회복", cost: 0, damage_multiplier: 0, type: "utility", effect_desc: "최대 HP의 5%를 회복하고 MP를 30 얻습니다." },
+        { id: 8, name: "무력화", cost: 25, damage_multiplier: 0, type: "debuff", effect_desc: "2턴 동안 대상의 공격력을 40% 감소시킵니다. (무력화)" },
+        { id: 9, name: "맹독 주입", cost: 45, damage_multiplier: 0.5, type: "attack_dot", effect_desc: "피해를 입히고 3턴 동안 턴당 50의 중독 피해를 입힙니다. (맹독 주입)" },
+        { id: 10, name: "운명 거부", cost: 60, damage_multiplier: 0, type: "defense_dice", effect_desc: "다음 턴에 발동할 운명 주사위 효과를 완전히 무시합니다. (운명 거부)" },
+        { id: 11, name: "시간 정지", cost: 70, damage_multiplier: 0, type: "debuff_skip_opponent", effect_desc: "매우 높은 MP를 소모하여 상대의 다음 2턴을 완전히 스킵합니다." },
+        { id: 12, name: "마나 확장 (소)", cost: 20, damage_multiplier: 0, type: "utility_mp_max_increase", mp_increase: 10, mp_restore: 5, effect_desc: "영구적으로 최대 MP를 10 증가시키고, 현재 MP를 5 회복합니다." },
+        { id: 13, name: "방어 무시 일격", cost: 40, damage_multiplier: 1.2, type: "attack_true_damage", effect_desc: "상대 방어력을 완전히 무시하는 1.2배 강력한 공격을 합니다." },
+        { id: 14, name: "운명 조작", cost: 50, damage_multiplier: 0, type: "utility_dice_control", effect_desc: "다음 턴 운명 주사위를 +20% 유리하게 조작합니다. (운명 조작)" },
+        { id: 15, name: "급소 노리기", cost: 30, damage_multiplier: 0.8, type: "debuff_crit_vulnerable", effect_desc: "약한 피해(0.8배)를 입히고, 2턴 동안 치명타 피해(2배)를 받을 확률을 50%로 만듭니다. (급소 노출)" },
+        { id: 16, name: "피의 계약", cost: 0, damage_multiplier: 0, type: "utility_transfer_hp_mp", effect_desc: "현재 HP의 20%를 소모하여 MP로 즉시 변환합니다. (HP가 100 이상일 때만 가능)" },
+        { id: 17, name: "환영 분신", cost: 40, damage_multiplier: 0, type: "buff_evade", effect_desc: "다음 턴 상대의 공격을 50% 확률로 회피합니다. (환영 분신)" },
+        { id: 18, name: "마나 강탈", cost: 35, damage_multiplier: 0, type: "debuff_mp_steal", effect_desc: "상대방의 MP 20을 훔쳐와 자신의 MP로 만듭니다." },
+        { id: 19, name: "최후의 저항", cost: 60, damage_multiplier: 0, type: "defense_last_stand", effect_desc: "HP 300 이하일 때만 사용 가능. HP 100 회복 및 3턴 동안 피해 감소 50% 버프를 얻습니다. (피해 감소)" },
+        { id: 20, name: "광역 정화", cost: 50, damage_multiplier: 0, type: "cleanse_all", effect_desc: "자신에게 걸린 모든 해로운 효과를 제거하고, MP를 10 회복합니다." },
+        
+        // --- 카운터/반응형 스킬 10가지 (ID 21-30) ---
+        { id: 21, name: "원소 반사막", cost: 45, damage_multiplier: 0, type: "buff_reflect_magic", effect_desc: "1턴 동안 받는 마법 피해(MP 소모 스킬)를 100% 반사합니다." },
+        { id: 22, name: "필사의 방패", cost: 30, damage_multiplier: 0, type: "defense_shield_absorb", absorb_amount: 300, effect_desc: "1턴 동안 300 피해를 흡수하는 보호막을 얻습니다. (중첩 불가)" },
+        { id: 23, name: "피해 전환", cost: 50, damage_multiplier: 0, type: "buff_redirect_damage", effect_desc: "2턴 동안 받는 피해의 50%를 자신의 MP로 전환합니다. (피해 전환)" },
+        { id: 24, name: "복수의 일격", cost: 40, damage_multiplier: 1.0, type: "attack_conditional_crit", effect_desc: "상대방이 나에게 디버프가 걸린 상태일 경우, 3.0배의 치명타 피해를 입힙니다." },
+        { id: 25, name: "검풍참", cost: 40, damage_multiplier: 0.7, type: "attack_multihit_debuff", hits: 2, effect_desc: "약한 피해(0.7배)를 2회 입히고, 2턴 동안 상대의 방어력을 10 감소시키는 디버프를 겁니다. (방어력 감소)" },
+        { id: 26, name: "궁극의 인내", cost: 70, damage_multiplier: 0, type: "defense_damage_cap", effect_desc: "2턴 동안, 한 번에 받는 피해가 최대 200을 넘지 않도록 제한합니다." },
+        { id: 27, name: "흡공", cost: 35, damage_multiplier: 0, type: "debuff_mp_reflect", effect_desc: "2턴 동안 상대가 MP 소모 스킬 사용 시, 소모량의 50%를 자신이 회복합니다. (흡공)" },
+        { id: 28, name: "파쇄의 카운터", cost: 55, damage_multiplier: 0, type: "buff_counter_debuff", effect_desc: "1턴 동안 공격을 받을 경우, 상대에게 2턴간 '방어력 50% 감소' 디버프를 겁니다." },
+        { id: 29, name: "마나 확장 (대)", cost: 50, damage_multiplier: 0, type: "utility_mp_max_increase_heavy", mp_increase: 25, mp_restore: 10, effect_desc: "영구적으로 최대 MP를 25 증가시키고, 현재 MP를 10 회복합니다." },
+        { id: 30, name: "역전의 기회", cost: 0, damage_multiplier: 0, type: "utility_swap_stats", effect_desc: "HP 20% 미만일 때만 사용 가능. 자신의 현재 HP와 상대방의 현재 HP를 맞바꿉니다." },
+
+        // --- 공격/유틸 스킬 10가지 (ID 31-40) ---
+        { id: 31, name: "충격파", cost: 35, damage_multiplier: 1.0, type: "attack_mp_drain", effect_desc: "일반 피해 후 상대의 MP를 10 감소시킵니다. (광역 공격)" },
+        { id: 32, name: "집중 사격", cost: 50, damage_multiplier: 0.4, type: "attack_multihit_crit", hits: 5, effect_desc: "약한 피해(0.4배)를 5회 입히고, 각 타격은 40% 확률로 치명타입니다." },
+        { id: 33, name: "마력 포격", cost: 60, damage_multiplier: 1.5, type: "attack_mp_based", effect_desc: "강력한 피해(1.5배)를 입히고, 현재 MP가 높을수록 추가 피해(MP 1당 +1)를 입힙니다." },
+        { id: 34, name: "지연 폭발", cost: 45, damage_multiplier: 0, type: "debuff_delayed_damage", effect_desc: "즉시 피해는 없지만, 2턴 후 300의 고정 피해를 입히는 디버프를 겁니다. (지연 폭발)" },
+        { id: 35, name: "압도적인 힘", cost: 70, damage_multiplier: 3.0, type: "attack_conditional_defense", effect_desc: "매우 강력한 피해(3.0배)를 입힙니다. 상대의 방어력이 15 이상일 때만 사용 가능합니다." },
+        { id: 36, name: "쇠약의 일격", cost: 30, damage_multiplier: 0.7, type: "attack_debuff_heal_reduc", effect_desc: "약한 피해(0.7배)를 입히고, 3턴 동안 상대의 모든 회복 효과를 50% 감소시킵니다. (회복 감소)" },
+        { id: 37, name: "신속 격파", cost: 40, damage_multiplier: 1.1, type: "attack_fast_cast", effect_desc: "피해(1.1배)를 입히고, 이번 턴의 운명 주사위 효과를 1.0으로 초기화합니다." },
+        { id: 38, name: "방어 붕괴", cost: 55, damage_multiplier: 1.3, type: "attack_defense_break", effect_desc: "강력한 피해(1.3배)를 입히고, 상대의 현재 방어력 5를 영구적으로 감소시킵니다." },
+        { id: 39, name: "생명 전환", cost: 0, damage_multiplier: 1.0, type: "attack_hp_cost", effect_desc: "일반 피해를 입히고, MP 대신 현재 HP의 10%를 소모합니다. (HP 100 이상 시 사용 가능)" },
+        { id: 40, name: "회복 봉쇄", cost: 50, damage_multiplier: 1.0, type: "attack_block_heal", effect_desc: "일반 피해를 입히고, 2턴 동안 상대의 회복 스킬 사용을 봉쇄합니다. (회복 봉쇄)" },
+
+        // --- 필드 스킬 5가지 (ID 41-45) ---
+        { id: 41, name: "중력장", cost: 70, damage_multiplier: 0, type: "field_mp_cost_increase", duration: 3, effect_desc: "3턴 동안, 모든 스킬의 MP 소모량이 50% 증가합니다. (양쪽 모두 적용)" },
+        { id: 42, name: "가속장", cost: 60, damage_multiplier: 0, type: "field_haste_boost", duration: 2, effect_desc: "2턴 동안, 턴 시작 시 MP 회복량이 2배, 턴당 공격력이 100 증가합니다. (양쪽 모두 적용)" },
+        { id: 43, name: "미다스 장", cost: 55, damage_multiplier: 0, type: "field_damage_to_mp", duration: 3, effect_desc: "3턴 동안, 공격 스킬로 입힌 피해의 10%를 MP로 회복합니다. (양쪽 모두 적용)" },
+        { id: 44, name: "침묵장", cost: 65, damage_multiplier: 0, type: "field_non_attack_cost_increase", duration: 2, effect_desc: "2턴 동안, 비공격 스킬의 MP 소모량이 100% 증가합니다. (양쪽 모두 적용)" },
+        { id: 45, name: "혼돈장", cost: 75, damage_multiplier: 0, type: "field_random_damage", duration: 2, effect_desc: "2턴 동안, 모든 공격 스킬의 최종 피해에 -50%에서 +50%의 무작위 변동이 적용됩니다. (양쪽 모두 적용)" },
+    ];
+
+    let players = [];
+    let currentPlayerIndex = 0;
+    let turnCount = 0;
+    let diceModifier = 1.0;
+    let setupStep = 1; // 1: P1 select, 2: P2 select, 3: Battle
+
+    // --- 글로벌 필드 효과 상태 ---
+    let FIELD_EFFECT = {
+        name: '없음',
+        type: null,
+        duration: 0
+    };
+
+    // --- DOM 요소 캐싱 ---
+    const $logArea = document.getElementById('log-area');
+    const $currentTurnInfo = document.getElementById('current-turn-info');
+    const $currentPlayerSkills = document.getElementById('current-player-skills');
+    const $gameMessage = document.getElementById('game-message');
+    const $finalResult = document.getElementById('final-result');
+    const $finalMessage = document.getElementById('final-message');
+    const $diceText = document.getElementById('dice-text');
+    const $fieldText = document.getElementById('field-text'); // New field text
+    const $setupModal = document.getElementById('setup-modal');
+    const $setupTitle = document.getElementById('setup-title');
+    const $skillSelectionGrid = document.getElementById('skill-selection-grid');
+    const $confirmSkillsBtn = document.getElementById('confirm-skills-btn');
+
+    // --- 헬퍼 함수 ---
+
+    /** 로그 메시지 추가 및 스크롤 */
+    function addLog(message, color = 'text-gray-200') {
+        const p = document.createElement('p');
+        p.className = `p-1 ${color} border-b border-slate-700`;
+        p.innerHTML = `[턴 ${turnCount}] ${message}`;
+        $logArea.appendChild(p);
+        $logArea.scrollTop = $logArea.scrollHeight;
+    }
+
+    /** 스킬의 실제 MP 소모량 계산 (필드 효과 적용) */
+    function calculateSkillCost(skill) {
+        if (skill.cost === 0 || skill.type === 'attack_hp_cost') return 0;
+        
+        let cost = skill.cost;
+
+        // 1. 중력장 (field_mp_cost_increase): 모든 스킬 MP 소모량 50% 증가
+        if (FIELD_EFFECT.type === 'field_mp_cost_increase') {
+            cost = Math.ceil(cost * 1.5);
+        }
+
+        // 2. 침묵장 (field_non_attack_cost_increase): 비공격 스킬 MP 소모량 100% 증가
+        if (FIELD_EFFECT.type === 'field_non_attack_cost_increase') {
+            // 'attack'으로 시작하지 않는 스킬 타입 (일반 공격 제외)
+            if (skill.type !== 'attack' && !skill.type.startsWith('attack_')) {
+                cost = Math.ceil(cost * 2.0);
+            }
+        }
+        
+        return cost;
+    }
+
+    /** UI 업데이트 */
+    function updateUI() {
+        if (setupStep < 3) return; // Only update battle UI in battle step
+
+        players.forEach((p, index) => {
+            const $panel = document.getElementById(`stats-${index}`);
+            
+            // HP/MP Bar rendering
+            const hpWidth = Math.max(0, (p.hp / MAX_HP) * 100);
+            const mpWidth = Math.max(0, (p.mp / p.max_mp) * 100); 
+            
+            // Shield status
+            const shieldText = p.shield_value > 0 ? `<span class="px-2 py-0.5 text-xs rounded-full bg-blue-500 text-white">쉴드: ${p.shield_value}</span>` : '';
+
+            let statusText = p.status_effects.map(e => {
+                let color = e.type.includes('buff') ? 'text-green-300' : 'text-yellow-400';
+                return `<span class="px-2 py-0.5 text-xs rounded-full bg-slate-600 ${color}">${e.name} (${e.duration}T)</span>`;
+            }).join(' ');
+            
+            // Combine shield and status effects
+            const combinedStatus = `${shieldText} ${statusText}`;
+
+            // 가속장으로 인한 임시 공격력 증가 계산
+            let tempAttackIncrease = 0;
+            if (FIELD_EFFECT.type === 'field_haste_boost') {
+                tempAttackIncrease = 100;
+            }
+            const currentAttack = p.base_attack + tempAttackIncrease;
+
+            $panel.innerHTML = `
+                <!-- Attack Stat (Visible only when boosted by field) -->
+                ${tempAttackIncrease > 0 ? `<div class="text-sm font-medium text-white mb-1">공격력: <span class="text-xl font-bold text-red-400">${currentAttack}</span> (+${tempAttackIncrease})</div>` : ''}
+
+                <!-- Defense Stat -->
+                <div class="text-lg font-medium text-white mb-2">방어력: <span class="text-xl font-bold">${p.defense}</span></div>
+
+                <!-- HP Bar -->
+                <div class="mb-1 text-sm font-medium text-white flex justify-between">
+                    <span>HP: ${Math.ceil(p.hp)} / ${MAX_HP}</span>
+                    <span>${index === currentPlayerIndex ? '내 턴' : '상대 턴'}</span>
+                </div>
+                <div class="h-3 bg-gray-900 rounded-full overflow-hidden mb-2">
+                    <div class="stat-bar h-full ${index === 0 ? 'bg-purple-600' : 'bg-red-600'}" style="width: ${hpWidth}%;"></div>
+                </div>
+
+                <!-- MP Bar (Shows current MAX MP) -->
+                <div class="mb-1 text-sm font-medium text-white">MP: ${Math.floor(p.mp)} / <span class="text-yellow-300">${p.max_mp}</span></div>
+                <div class="h-2 bg-gray-900 rounded-full overflow-hidden mb-3">
+                    <div class="stat-bar h-full bg-blue-500" style="width: ${mpWidth}%;"></div>
+                </div>
+
+                <!-- Status Effects -->
+                <div class="h-8 mb-2">${combinedStatus}</div>
+            `;
+
+            // Update skill buttons for current player
+            if (index === currentPlayerIndex) {
+                renderSkillButtons(p);
+            }
+        });
+        
+        // Field Effect Display
+        if (FIELD_EFFECT.type) {
+            $fieldText.textContent = `필드 상태: ${FIELD_EFFECT.name} (${FIELD_EFFECT.duration}T 남음) - ${SKILLS.find(s => s.id === (FIELD_EFFECT.id)).effect_desc}`;
+            $fieldText.classList.add('text-red-400');
+            $fieldText.classList.remove('text-purple-400');
+        } else {
+            $fieldText.textContent = '필드 상태: 없음';
+            $fieldText.classList.remove('text-red-400');
+            $fieldText.classList.add('text-purple-400');
+        }
+
+
+        // Check Win/Loss
+        if (players[0].hp <= 0 || players[1].hp <= 0) {
+            endGame();
+        }
+    }
+
+    /** 스킬 선택 UI 렌더링 */
+    function renderSkillSelection() {
+        $skillSelectionGrid.innerHTML = '';
+        SKILLS.forEach(skill => {
+            const div = document.createElement('div');
+            const isDefaultAttack = skill.id === 1; 
+
+            div.className = `p-3 rounded-lg shadow-md border border-gray-600 transition duration-150 flex flex-col justify-between h-full text-white ${isDefaultAttack ? 'bg-gray-800 opacity-70 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-600 bg-slate-700'}`;
+            div.id = `skill-select-${skill.id}`;
+            if (!isDefaultAttack) {
+                div.onclick = () => toggleSkillSelection(skill.id);
+            }
+            
+            // 필드 스킬은 보라색 하이라이트
+            const isFieldSkill = skill.type.startsWith('field_');
+            let skillCost = skill.cost;
+
+            div.innerHTML = `
+                <div class="text-lg font-semibold ${isFieldSkill ? 'text-purple-400' : ''}">${skill.name} ${isFieldSkill ? '(필드)' : ''}</div>
+                <div class="text-sm text-yellow-300 mt-1">MP: ${skillCost}</div>
+                <p class="text-xs text-gray-400 mt-2">${skill.effect_desc}</p>
+            `;
+            $skillSelectionGrid.appendChild(div);
+        });
+        updateSkillSelectionDisplay();
+    }
+
+    let currentSelectedSkills = [1]; // 일반 공격 (ID 1)은 기본 선택
+    function toggleSkillSelection(skillId) {
+        if (skillId === 1) return; 
+
+        const index = currentSelectedSkills.indexOf(skillId);
+        const skillElement = document.getElementById(`skill-select-${skillId}`);
+
+        if (index > -1) {
+            // Deselect
+            currentSelectedSkills.splice(index, 1);
+            skillElement.classList.remove('ring-4', 'ring-indigo-400', 'bg-indigo-900');
+            skillElement.classList.add('bg-slate-700');
+        } else if (currentSelectedSkills.length < 5) {
+            // Select
+            currentSelectedSkills.push(skillId);
+            skillElement.classList.add('ring-4', 'ring-indigo-400', 'bg-indigo-900');
+            skillElement.classList.remove('bg-slate-700');
+        } else {
+            addLog("스킬은 5개까지만 선택할 수 있습니다.", 'text-red-400');
+        }
+        updateSkillSelectionDisplay();
+    }
+
+    function updateSkillSelectionDisplay() {
+        const count = currentSelectedSkills.length; 
+        
+        $confirmSkillsBtn.textContent = `선택 완료 (${count}/5)`;
+        
+        if (count === 5) {
+            $confirmSkillsBtn.disabled = false;
+            $confirmSkillsBtn.classList.replace('bg-gray-500', 'bg-indigo-500');
+            $confirmSkillsBtn.classList.add('hover:bg-indigo-600');
+        } else {
+            $confirmSkillsBtn.disabled = true;
+            $confirmSkillsBtn.classList.replace('bg-indigo-500', 'bg-gray-500');
+            $confirmSkillsBtn.classList.remove('hover:bg-indigo-600');
+        }
+        $setupTitle.textContent = `${players[setupStep - 1].name} 스킬 선택 (${count}/5)`;
+    }
+
+    function confirmSkillSelection() {
+        const playerIndex = setupStep - 1;
+        
+        // Map skill IDs to actual skill objects
+        players[playerIndex].selected_skills = currentSelectedSkills.map(id => SKILLS.find(s => s.id === id));
+        currentSelectedSkills = [1]; // Reset for next player (or battle)
+        
+        if (setupStep === 1) {
+            setupStep = 2;
+            // Reset UI for Player 2
+            $skillSelectionGrid.innerHTML = '';
+            renderSkillSelection();
+            
+        } else if (setupStep === 2) {
+            // Setup complete, start battle
+            setupStep = 3;
+            $setupModal.classList.add('hidden');
+            addLog('모든 플레이어의 스킬 선택이 완료되었습니다. 전투 시작!', 'text-green-500');
+            startTurn();
+        }
+    }
+
+
+    /** 게임 종료 처리 */
+    function endGame() {
+        currentPlayerIndex = -1; // End game state
+        $gameMessage.classList.remove('hidden');
+
+        const p1Dead = players[0].hp <= 0;
+        const p2Dead = players[1].hp <= 0;
+
+        if (p1Dead && p2Dead) {
+            $finalResult.textContent = '무승부!';
+            $finalMessage.textContent = '운명 주사위가 너무 강했습니다. 동시에 쓰러졌습니다.';
+            $finalResult.classList.add('text-yellow-400');
+        } else if (p1Dead) {
+            $finalResult.textContent = '플레이어 2 승리!';
+            $finalMessage.textContent = `플레이어 1을 물리쳤습니다! 총 ${turnCount}턴 소요.`;
+            $finalResult.classList.add('text-red-500');
+        } else {
+            $finalResult.textContent = '플레이어 1 승리!';
+            $finalMessage.textContent = `플레이어 2를 물리쳤습니다! 총 ${turnCount}턴 소요.`;
+            $finalResult.classList.add('text-purple-500');
+        }
+    }
+
+    /** 게임 초기화 */
+    function resetGame() {
+        players = [
+            { id: 0, name: '플레이어 1', hp: MAX_HP, mp: BASE_MAX_MP, max_mp: BASE_MAX_MP, base_attack: BASE_ATTACK, defense: 10, selected_skills: [], status_effects: [], shield_value: 0 },
+            { id: 1, name: '플레이어 2', hp: MAX_HP, mp: BASE_MAX_MP, max_mp: BASE_MAX_MP, base_attack: BASE_ATTACK, defense: 10, selected_skills: [], status_effects: [], shield_value: 0 }
+        ];
+        currentPlayerIndex = 0;
+        turnCount = 0;
+        diceModifier = 1.0;
+        setupStep = 1;
+        currentSelectedSkills = [1]; 
+        
+        FIELD_EFFECT = { name: '없음', type: null, duration: 0 }; // 필드 상태 초기화
+
+        $logArea.innerHTML = '<p class="text-yellow-400 p-1">게임을 시작하려면 45가지 스킬 중 5가지를 선택하세요.</p>';
+        $gameMessage.classList.add('hidden');
+        $setupModal.classList.remove('hidden');
+        $diceText.textContent = '운명 주사위: 대기 중...';
+        
+        // Clean up final result class
+        $finalResult.classList.remove('text-yellow-400', 'text-red-500', 'text-purple-500');
+        
+        // Restart setup phase
+        renderSkillSelection();
+        updateSkillSelectionDisplay();
+        updateUI(); 
+    }
+
+    /** 스킬 버튼 렌더링 (현재 플레이어용) */
+    function renderSkillButtons(player) {
+        $currentPlayerSkills.innerHTML = '';
+        player.selected_skills.forEach(skill => {
+            const cost = calculateSkillCost(skill); // 필드 효과가 적용된 실제 코스트
+            const button = document.createElement('button');
+            button.onclick = () => useSkill(player.id, skill.id);
+            
+            // 특수 사용 조건 체크
+            let disabled = player.mp < cost && skill.type !== 'attack_hp_cost';
+            let tooltip = skill.effect_desc;
+            const target = players[1 - player.id];
+            
+            // 피의 계약 (ID 16) / 생명 전환 (ID 39)
+            if ((skill.id === 16 || skill.id === 39) && player.hp < 100) { 
+                disabled = true;
+                tooltip += " (HP가 100 미만이라 사용 불가)";
+            }
+            // 최후의 저항 (ID 19)
+            if (skill.id === 19 && player.hp > 300) { 
+                disabled = true;
+                tooltip += " (HP가 300을 초과하여 사용 불가)";
+            }
+            // 역전의 기회 (ID 30)
+            if (skill.id === 30 && player.hp >= MAX_HP * 0.2) { 
+                disabled = true;
+                tooltip += " (HP가 20% 이상이라 사용 불가)";
+            }
+            // 압도적인 힘 (ID 35)
+            if (skill.id === 35 && target.defense < 15) { 
+                disabled = true;
+                tooltip += " (상대 방어력이 15 미만이라 사용 불가)";
+            }
+            // 회복 봉쇄 (ID 40): 회복 스킬 사용 불가 상태 체크
+            const healBlockEffect = player.status_effects.find(e => e.name === '회복 봉쇄');
+            if (healBlockEffect && (skill.type.includes('heal') || skill.type === 'defense_last_stand')) {
+                disabled = true;
+                tooltip = `[봉쇄됨] ${tooltip}`;
+            }
+            // 필드 스킬은 이미 다른 필드가 깔려있으면 사용 불가
+            if (skill.type.startsWith('field_') && FIELD_EFFECT.type !== null) {
+                disabled = true;
+                tooltip += ` (이미 **${FIELD_EFFECT.name}** 필드가 활성화되어 사용 불가)`;
+            }
+
+
+            button.disabled = disabled;
+            const isFieldSkill = skill.type.startsWith('field_');
+            
+            let buttonClass = 'bg-indigo-600';
+            if (isFieldSkill) {
+                buttonClass = 'bg-purple-600'; // 필드 스킬은 보라색
+            } else if (disabled) {
+                buttonClass = 'disabled:opacity-50 disabled:cursor-not-allowed';
+            }
+
+            button.className = `skill-button ${buttonClass} text-white font-semibold py-3 px-4 rounded-lg shadow-lg transition duration-200 enabled:hover:bg-indigo-700 text-left flex flex-col justify-between h-full`;
+            button.innerHTML = `
+                <div class="text-sm sm:text-base">${skill.name}</div>
+                <div class="text-xs sm:text-sm font-light text-indigo-200 mt-1">${tooltip} (MP ${cost})</div>
+            `;
+            $currentPlayerSkills.appendChild(button);
+        });
+    }
+
+    // --- 턴 및 전투 로직 ---
+
+    /** 턴 시작 시 로직 */
+    function startTurn() {
+        if (players[0].hp <= 0 || players[1].hp <= 0) return;
+
+        turnCount++;
+        const current = players[currentPlayerIndex];
+        const opponent = players[1 - currentPlayerIndex];
+
+        // 0. 운명 주사위 조작 효과 확인 및 굴림
+        let modifiedDice = diceModifier;
+        const fateManipulator = current.status_effects.find(e => e.name === '운명 조작');
+        if (fateManipulator) {
+            modifiedDice = 1.2; 
+            addLog(`**운명 조작** 효과로 운명 주사위가 +20%로 고정됩니다.`, 'text-indigo-400');
+        } else {
+            diceModifier = 1 + (Math.random() * 0.3 - 0.15); 
+            modifiedDice = diceModifier;
+        }
+
+        const fateDenier = current.status_effects.find(e => e.name === '운명 거부');
+        if (fateDenier) {
+            modifiedDice = 1.0; 
+            addLog(`**운명 거부** 효과로 이번 턴의 운명 주사위 효과가 무시됩니다.`, 'text-indigo-400');
+        }
+
+        diceModifier = modifiedDice;
+        const modifierPercent = Math.round((diceModifier - 1) * 100);
+        $diceText.textContent = `운명 주사위: 모든 효과 ${modifierPercent >= 0 ? '+' : ''}${modifierPercent}% 보정`;
+        addLog(`**운명 주사위**가 굴려졌습니다! 금 턴의 모든 효과에 ${modifierPercent}% 보정이 적용됩니다.`, modifierPercent >= 0 ? 'text-green-400' : 'text-red-400');
+
+        // 1. 상대 턴 스킵 효과 확인 (시간 정지 스킬)
+        const opponentSkipEffect = current.status_effects.find(e => e.name === '턴 스킵 (상대)');
+        
+        // 2. 턴 시작 시 MP 회복 및 상태 효과 처리 (스킵 여부와 관계없이 지속 시간은 감소)
+        processTurnStart(current, opponent);
+
+        // 3. 필드 효과 지속시간 감소
+        if (FIELD_EFFECT.type) {
+            FIELD_EFFECT.duration--;
+            if (FIELD_EFFECT.duration <= 0) {
+                addLog(`**${FIELD_EFFECT.name}** 필드 효과가 종료되었습니다.`, 'text-purple-400');
+                FIELD_EFFECT = { name: '없음', type: null, duration: 0 };
+            }
+        }
+
+        // 4. 독(DOT) 피해 및 지연 폭발 처리 (턴 시작 시)
+        applyDOTDamage(current);
+        applyDelayedDamage(current);
+        
+        if (opponentSkipEffect) {
+            addLog(`**${current.name}**는 **시간 정지** 효과로 인해 행동할 수 없습니다. (남은 턴: ${opponentSkipEffect.duration})`, 'text-yellow-500');
+            
+            // 턴 전환 (스킵)
+            currentPlayerIndex = 1 - currentPlayerIndex;
+
+            // 다음 턴 시작 (딜레이 없이 바로)
+            if (players[0].hp > 0 && players[1].hp > 0) {
+                updateUI(); // 스킵된 플레이어의 상태 업데이트 후
+                startTurn();
+            }
+            return; // 턴 스킵 시 나머지 로직 스킵
+        }
+
+
+        // 5. 정상적인 턴 진행
+        updateUI();
+    }
+
+    /** 턴 시작 효과 처리 (MP 회복, 효과 턴 감소) */
+    function processTurnStart(current, opponent) {
+        // 기본 MP 회복 (턴 당 10)
+        let mpRecovery = 10; 
+        
+        // 가속장 (field_haste_boost) 체크
+        if (FIELD_EFFECT.type === 'field_haste_boost') {
+            mpRecovery *= 2; // MP 회복량 2배 (20)
+            addLog(`**가속장** 효과로 ${current.name}이(가) MP 회복량 2배 및 공격력 증가 효과를 받습니다.`, 'text-purple-300');
+        }
+
+        // MP 회복 - 최대 MP를 고려하여 회복
+        current.mp = Math.min(current.max_mp, current.mp + mpRecovery);
+        
+        // 상태 효과 적용/감소 및 제거
+        const processEffects = (player) => {
+            player.status_effects = player.status_effects.filter(effect => {
+                // 실드 효과는 턴 시작 시 해제 (1턴 지속)
+                if (player.shield_value > 0 && effect.duration === 1 && effect.name === '필사의 방패') {
+                    player.shield_value = 0;
+                    addLog(`${player.name}의 '${effect.name}' 실드가 해제되었습니다.`, 'text-gray-500');
+                }
+                
+                effect.duration--;
+                if (effect.duration <= 0) {
+                    addLog(`${player.name}에게 걸린 '${effect.name}' 효과가 해제되었습니다.`, 'text-gray-500');
+                    return false;
+                }
+                return true;
+            });
+        };
+
+        // 자신의 버프/디버프 지속시간 감소
+        processEffects(current);
+        // 상대방의 버프/디버프 지속시간 감소
+        processEffects(opponent); 
+    }
+
+    /** DOT 피해 적용 */
+    function applyDOTDamage(current) {
+        // 독(DOT) 디버프 확인
+        current.status_effects.filter(e => e.name === '맹독 주입').forEach(e => {
+            const damage = Math.floor(50 * diceModifier);
+            current.hp -= damage;
+            addLog(`${current.name}이(가) 독 피해 ${damage}를 입었습니다.`, 'text-red-400');
+        });
+    }
+
+    /** 지연 폭발 피해 적용 */
+    function applyDelayedDamage(current) {
+        // 지연 폭발 디버프 확인
+        current.status_effects.filter(e => e.name === '지연 폭발' && e.duration === 0).forEach(e => {
+            const damage = 300; // 고정 피해 300
+            current.hp -= damage;
+            // 지연 폭발 디버프는 duration이 0일 때 (즉, 2턴이 지난 후 턴 시작 시) 발동되므로, 여기서 제거
+            current.status_effects = current.status_effects.filter(effect => effect !== e);
+            addLog(`${current.name}에게 **지연 폭발**이 터져 300 고정 피해를 입었습니다!`, 'text-red-600');
+        });
+    }
+    
+    /** 플레이어 스킬 사용 */
+    function useSkill(pId, skillId) {
+        if (currentPlayerIndex !== pId || players[pId].hp <= 0 || players[1 - pId].hp <= 0) return;
+
+        const current = players[pId];
+        const target = players[1 - pId];
+        const skill = SKILLS.find(s => s.id === skillId);
+        
+        const calculatedCost = calculateSkillCost(skill);
+
+        // 스킬 사용 조건 재확인 (MP 및 특수 조건)
+        // MP 소모
+        if (skill.type !== 'attack_hp_cost' && current.mp < calculatedCost) return;
+        
+        // HP 소모/특수 조건 체크 (복잡한 조건이 많으므로 코드를 간결하게 유지)
+        if (skill.id === 39) { 
+            if (current.hp < 100) return;
+            const hpCost = Math.floor(current.hp * 0.1);
+            current.hp -= hpCost;
+            addLog(`**생명 전환**의 대가로 HP ${hpCost}를 소모했습니다.`, 'text-yellow-500');
+        } else if (skill.id === 16 && current.hp < 100) { 
+             return;
+        } else if (skill.id === 19 && current.hp > 300) { 
+             return;
+        } else if (skill.id === 30 && current.hp >= MAX_HP * 0.2) { 
+             return;
+        } else if (skill.id === 35 && target.defense < 15) { 
+             return;
+        }
+        
+        // 필드 스킬 사용 불가 조건
+        if (skill.type.startsWith('field_') && FIELD_EFFECT.type !== null) return;
+        
+        // 회복 봉쇄 상태일 때 회복/방어 스킬 사용 불가
+        const healBlockEffect = current.status_effects.find(e => e.name === '회복 봉쇄');
+        if (healBlockEffect && (skill.type.includes('heal') || skill.type === 'defense_last_stand')) return;
+
+
+        // MP 소모 처리 (HP 소모 스킬 제외)
+        if (skill.id !== 39) {
+            current.mp -= calculatedCost;
+        }
+        
+        addLog(`**${current.name}**가 **${skill.name}** 스킬을 사용했습니다. ${skill.id !== 39 ? `(MP -${calculatedCost})` : ''}`, 'text-green-400');
+
+        // 0. 흡공(debuff_mp_reflect) 처리 (상대가 나에게 걸어놓은 MP 반사 디버프)
+        const mpReflectEffect = target.status_effects.find(e => e.name === '흡공');
+        if (mpReflectEffect && calculatedCost > 0) {
+            const reflectedMP = Math.floor(calculatedCost * 0.5);
+            current.mp = Math.min(current.max_mp, current.mp + reflectedMP); 
+            target.mp = Math.min(target.max_mp, target.mp + reflectedMP); 
+            addLog(`**흡공** 발동! ${target.name}에게 소모 MP의 50%인 ${reflectedMP} MP를 돌려받았습니다.`, 'text-indigo-300');
+        }
+        
+        // 1. 상태 변수 계산
+        let totalAttack = current.base_attack;
+        let finalDefense = target.defense;
+        let isTrueDamage = skill.type === 'attack_true_damage';
+        let isCritVulnerable = false;
+        let isMagicAttack = skill.cost > 0 && skill.type.includes('attack'); 
+
+        // 가속장 (field_haste_boost) 공격력 증가
+        if (FIELD_EFFECT.type === 'field_haste_boost') {
+            totalAttack += 100;
+        }
+
+        // 공격자에게 걸린 '무력화' 디버프 확인 (공격력 감소)
+        current.status_effects.filter(e => e.name === '무력화').forEach(() => {
+            totalAttack *= 0.6; // 40% 공격력 감소
+            addLog(`*무력화* 디버프로 인해 ${current.name}의 공격력이 감소되었습니다.`, 'text-yellow-500');
+        });
+
+        // 타겟에게 걸린 '급소 노출' 디버프 확인 (치명타 확률 부여)
+        target.status_effects.filter(e => e.name === '급소 노출').forEach(() => {
+            if (Math.random() < 0.5) { 
+                isCritVulnerable = true;
+                addLog(`*급소 노출* 디버프 발동! ${target.name}은(는) 치명타 피해를 입습니다.`, 'text-red-600');
+            }
+        });
+        
+        // 타겟에게 걸린 '방어력 50% 감소' 디버프 확인
+        target.status_effects.filter(e => e.name === '방어력 50% 감소').forEach(() => {
+            finalDefense *= 0.5;
+            addLog(`*방어력 50% 감소* 디버프로 인해 ${target.name}의 방어력이 절반으로 감소되었습니다.`, 'text-red-500');
+        });
+
+        // 타겟에게 걸린 '방어력 10 감소 (일시적)' 디버프 확인 (검풍참)
+        let tempDefenseReduction = 0;
+        target.status_effects.filter(e => e.name === '방어력 10 감소 (일시적)').forEach(e => {
+            tempDefenseReduction += 10;
+        });
+        if (tempDefenseReduction > 0) {
+            finalDefense = Math.max(0, finalDefense - tempDefenseReduction);
+            addLog(`*방어력 10 감소 (일시적)* 디버프로 인해 ${target.name}의 방어력이 ${tempDefenseReduction} 감소되었습니다.`, 'text-red-500');
+        }
+
+        // 2. 스킬 타입별 효과 적용
+        let damageDealt = 0;
+        let healAmount = 0;
+        
+        if (skill.type.startsWith('attack') || skill.type.startsWith('debuff_crit_vulnerable')) {
+            // 공격 피해 계산
+            let baseDamage = totalAttack * skill.damage_multiplier;
+            
+            // 마력 포격 (ID 33) 추가 피해
+            if (skill.id === 33) {
+                baseDamage += current.mp;
+                addLog(`**마력 포격** 효과로 MP에 비례하여 ${current.mp}의 추가 피해가 발생합니다.`, 'text-yellow-300');
+            }
+
+            let preDefenseDamage = baseDamage;
+
+            // 방어력 적용
+            if (!isTrueDamage) {
+                preDefenseDamage = (baseDamage / (1 + finalDefense / 100));
+            }
+
+            let critMultiplier = isCritVulnerable ? 2.0 : 1.0;
+
+            // 집중 사격 (ID 32) 크리티컬 확률 적용
+            const isMultihitCrit = skill.id === 32;
+
+            // 복수의 일격 (ID 24) 조건부 치명타 체크
+            if (skill.id === 24) {
+                const hasDebuff = current.status_effects.some(e => e.type.includes('debuff') && e.name !== '맹독 주입' && e.name !== '턴 스킵 (상대)'); 
+                if (hasDebuff) {
+                    critMultiplier = 3.0; // 3.0배 치명타
+                    addLog(`**복수의 일격** 조건 만족! ${current.name}이(가) 3.0배 치명타 피해를 입힙니다.`, 'text-red-600');
+                } else {
+                    critMultiplier = 1.0; 
+                    addLog(`**복수의 일격** 조건 불만족. 일반 공격이 나갑니다.`, 'text-gray-400');
+                }
+            }
+
+            let finalDamage = preDefenseDamage * critMultiplier;
+            
+            let hits = skill.hits || 1;
+            let totalEffectiveDamage = 0;
+            let isReflected = false;
+            let isCountered = false; 
+
+            // 회피 체크
+            const evadeBuff = target.status_effects.find(e => e.name === '환영 분신');
+            if (evadeBuff && Math.random() < 0.5) {
+                addLog(`**환영 분신** 효과로 ${target.name}이(가) 공격을 완전히 회피했습니다!`, 'text-blue-400');
+                target.status_effects = target.status_effects.filter(e => e.name !== '환영 분신'); 
+                totalEffectiveDamage = 0;
+            } else {
+
+                // 원소 반사막 (ID 21) 체크
+                const reflectBuff = target.status_effects.find(e => e.name === '원소 반사막');
+                if (reflectBuff && isMagicAttack) {
+                    isReflected = true;
+                    addLog(`**원소 반사막** 발동! ${current.name}의 마법 공격이 100% 반사됩니다.`, 'text-blue-400');
+                    target.status_effects = target.status_effects.filter(e => e.name !== '원소 반사막'); 
+                    
+                    const reflectedDamage = Math.max(1, Math.floor(finalDamage * hits * diceModifier));
+                    current.hp -= reflectedDamage;
+                    addLog(`${current.name}이(가) 반사 피해 ${reflectedDamage}를 입었습니다.`, 'text-red-500');
+                    
+                    totalEffectiveDamage = 0;
+                } else {
+
+                    for (let i = 0; i < hits; i++) {
+                        let hitCritMultiplier = critMultiplier;
+                        let hitDamage = (preDefenseDamage / hits);
+
+                        // 집중 사격 (ID 32) 개별 치명타 적용
+                        if (isMultihitCrit && Math.random() < 0.4) {
+                            hitCritMultiplier = 2.0; 
+                            addLog(`집중 사격 ${i + 1}타: 치명타 발생!`, 'text-red-500');
+                        } else if (isMultihitCrit) {
+                            hitCritMultiplier = 1.0;
+                        }
+                        
+                        hitDamage *= hitCritMultiplier;
+
+                        // 주사위 보정 적용
+                        let effectiveDamage = Math.max(1, Math.floor(hitDamage * diceModifier));
+                        
+                        // 혼돈장 (field_random_damage) 적용: -50% ~ +50%
+                        if (FIELD_EFFECT.type === 'field_random_damage') {
+                            const randomModifier = 1 + (Math.random() * 1.0 - 0.5); // 0.5 ~ 1.5
+                            effectiveDamage = Math.floor(effectiveDamage * randomModifier);
+                            addLog(`**혼돈장** 효과로 피해량에 ${Math.round((randomModifier - 1) * 100)}%의 무작위 변동이 적용되었습니다.`, 'text-purple-300');
+                        }
+                        
+                        // 궁극의 인내 (ID 26) 데미지 캡 적용
+                        const capEffect = target.status_effects.find(e => e.name === '궁극의 인내');
+                        if (capEffect) {
+                            effectiveDamage = Math.min(effectiveDamage, 200);
+                            addLog(`*궁극의 인내* 효과로 피해가 200으로 제한되었습니다.`, 'text-gray-500');
+                        }
+
+                        // 피해 흡수 (쉴드) 처리
+                        if (target.shield_value > 0) {
+                            const damageToShield = Math.min(effectiveDamage, target.shield_value);
+                            target.shield_value -= damageToShield;
+                            effectiveDamage -= damageToShield;
+                            if (target.shield_value <= 0) {
+                                addLog(`${target.name}의 쉴드가 파괴되었습니다.`, 'text-gray-500');
+                                target.shield_value = 0;
+                            }
+                        }
+
+                        // 남은 피해 HP 적용
+                        if (effectiveDamage > 0) {
+                            target.hp -= effectiveDamage;
+                        }
+                        totalEffectiveDamage += effectiveDamage;
+
+                        // 파쇄의 카운터 (ID 28) 체크
+                        const counterDebuff = target.status_effects.find(e => e.name === '파쇄의 카운터'); 
+                        
+                        if (effectiveDamage > 0 && counterDebuff) {
+                            isCountered = true; 
+                            current.status_effects = current.status_effects.filter(e => e.name !== '방어력 50% 감소');
+                            current.status_effects.push({ name: '방어력 50% 감소', duration: 2, type: 'debuff' });
+                            addLog(`**파쇄의 카운터** 발동! ${current.name}에게 방어력 50% 감소 디버프를 걸었습니다.`, 'text-red-400');
+                        }
+                    }
+                }
+            }
+            
+            // 파쇄의 카운터 디버프 버프는 공격받은 후 제거 (1턴 지속)
+            if (isCountered) {
+                if (target.status_effects.some(e => e.name === '파쇄의 카운터')) {
+                     target.status_effects = target.status_effects.filter(e => e.name !== '파쇄의 카운터');
+                     addLog(`파쇄의 카운터 효과가 해제되었습니다.`, 'text-gray-500');
+                }
+            }
+            
+            // 피해 전환 (ID 23) MP 회복 체크
+            const mpRedirectEffect = target.status_effects.find(e => e.name === '피해 전환');
+            if (mpRedirectEffect) {
+                const mpGain = Math.floor(totalEffectiveDamage * 0.5); 
+                target.mp = Math.min(target.max_mp, target.mp + mpGain); 
+                addLog(`**피해 전환** 효과로 ${mpGain} MP를 회복했습니다.`, 'text-blue-300');
+            }
+
+            // 미다스 장 (field_damage_to_mp) MP 회복 체크
+            if (FIELD_EFFECT.type === 'field_damage_to_mp' && totalEffectiveDamage > 0) {
+                const mpGain = Math.floor(totalEffectiveDamage * 0.1); 
+                current.mp = Math.min(current.max_mp, current.mp + mpGain); 
+                addLog(`**미다스 장** 효과로 입힌 피해의 10%인 ${mpGain} MP를 회복했습니다.`, 'text-purple-300');
+            }
+
+
+            damageDealt = totalEffectiveDamage;
+            
+            if (damageDealt > 0) {
+                addLog(`${target.name}에게 ${Math.floor(damageDealt)}의 피해를 입혔습니다.`, 'text-red-300');
+            }
+
+            // --- 추가 효과 ---
+            if (skill.type === 'attack_heal') {
+                healAmount = Math.floor(damageDealt * 0.5 * diceModifier); 
+                current.hp = Math.min(MAX_HP, current.hp + healAmount);
+                addLog(`영혼 흡수 효과로 ${healAmount}의 체력을 회복했습니다.`, 'text-blue-300');
+            } else if (skill.type === 'attack_selfdmg') {
+                let selfDamage = Math.floor(MAX_HP * 0.1);
+                const damageReductionEffect = current.status_effects.find(e => e.name === '피해 감소');
+                if(damageReductionEffect) {
+                    selfDamage *= (damageReductionEffect.duration > 0 && damageReductionEffect.name === '최후의 저항' ? 0.5 : 0.7);
+                }
+                current.hp -= selfDamage;
+                addLog(`마법 폭주의 반동으로 ${Math.floor(selfDamage)}의 피해를 입었습니다.`, 'text-yellow-500');
+            } else if (skill.type === 'attack_dot') {
+                target.status_effects = target.status_effects.filter(e => e.name !== '맹독 주입');
+                target.status_effects.push({ name: '맹독 주입', duration: 3, type: 'debuff_dot' });
+                addLog(`${target.name}에게 3턴 동안 중독 디버프를 걸었습니다.`, 'text-red-400');
+            } else if (skill.id === 31) {
+                target.mp = Math.max(0, target.mp - 10);
+                addLog(`${target.name}의 MP 10을 감소시켰습니다.`, 'text-indigo-400');
+            } else if (skill.id === 36) {
+                target.status_effects = target.status_effects.filter(e => e.name !== '회복 감소');
+                target.status_effects.push({ name: '회복 감소', duration: 3, type: 'debuff_heal_reduc' });
+                addLog(`${target.name}에게 3턴 동안 회복 효과 50% 감소 디버프를 걸었습니다.`, 'text-red-400');
+            } else if (skill.id === 37) {
+                diceModifier = 1.0;
+                $diceText.textContent = `운명 주사위: 모든 효과 +0% 보정 (신속 격파 발동)`;
+                addLog(`**신속 격파** 효과로 이번 턴의 운명 주사위 효과가 1.0으로 초기화되었습니다.`, 'text-indigo-400');
+            } else if (skill.id === 38) {
+                target.defense = Math.max(0, target.defense - 5);
+                addLog(`${target.name}의 방어력이 영구적으로 5 감소했습니다! (현재 ${target.defense})`, 'text-red-600');
+            } else if (skill.id === 40) {
+                target.status_effects = target.status_effects.filter(e => e.name !== '회복 봉쇄');
+                target.status_effects.push({ name: '회복 봉쇄', duration: 2, type: 'debuff_heal_block' });
+                addLog(`${target.name}에게 2턴 동안 회복 스킬 사용을 봉쇄하는 디버프를 걸었습니다.`, 'text-red-400');
+            } else if (skill.id === 25) {
+                target.status_effects.push({ name: '방어력 10 감소 (일시적)', duration: 2, type: 'debuff_defense_temp' });
+                addLog(`${target.name}에게 2턴 동안 방어력 10 감소 디버프를 걸었습니다.`, 'text-red-400');
+            }
+            
+        } else if (skill.type.startsWith('debuff_')) {
+             // 디버프 (공격이 아닌 순수 디버프)
+            switch(skill.type) {
+                case "debuff_skip_opponent": {
+                    target.status_effects = target.status_effects.filter(e => e.name !== '턴 스킵 (상대)'); 
+                    target.status_effects.push({ name: '턴 스킵 (상대)', duration: 2, type: 'debuff_skip' });
+                    addLog(`${target.name}에게 **시간 정지** 효과를 걸었습니다. 다음 2턴을 잃게 됩니다.`, 'text-red-500');
+                    break;
+                }
+                case "debuff_delayed_damage": {
+                    target.status_effects = target.status_effects.filter(e => e.name !== '지연 폭발'); 
+                    target.status_effects.push({ name: '지연 폭발', duration: 2, type: 'debuff_delayed' });
+                    addLog(`${target.name}에게 **지연 폭발** 디버프를 걸었습니다. 2턴 후 폭발합니다.`, 'text-red-500');
+                    break;
+                }
+                case "debuff": {
+                    target.status_effects = target.status_effects.filter(e => e.name !== '무력화'); 
+                    target.status_effects.push({ name: '무력화', duration: 2, type: 'debuff' });
+                    addLog(`${target.name}에게 2턴 동안 공격력 40% 감소 디버프를 걸었습니다.`, 'text-red-400');
+                    break;
+                }
+                case "debuff_mp_reflect": {
+                    target.status_effects = target.status_effects.filter(e => e.name !== '흡공'); 
+                    target.status_effects.push({ name: '흡공', duration: 2, type: 'debuff_mp_reflect' });
+                    addLog(`${target.name}에게 2턴 동안 MP 소모 시 50%를 흡수하는 디버프를 걸었습니다.`, 'text-red-400');
+                    break;
+                }
+            }
+        } else if (skill.type.startsWith('field_')) {
+            // 필드 스킬 발동 (이미 체크했으므로 바로 설정)
+            FIELD_EFFECT = {
+                id: skill.id,
+                name: skill.name,
+                type: skill.type,
+                duration: skill.duration
+            };
+            addLog(`**${skill.name}** 필드가 발동되었습니다! ${skill.duration}턴 동안 지속됩니다.`, 'text-purple-500');
+
+        } else {
+            // 버프, 유틸리티, 힐
+            switch (skill.type) {
+                case "buff": 
+                case "defense_last_stand": {
+                    const duration = skill.id === 19 ? 3 : 2;
+                    current.status_effects = current.status_effects.filter(e => e.name !== '피해 감소'); 
+                    current.status_effects.push({ name: '피해 감소', duration: duration, type: 'buff' });
+                    addLog(`${duration}턴 동안 받는 피해가 ${skill.id === 19 ? '50%' : '30%'} 감소합니다.`, 'text-green-300');
+
+                    if (skill.id === 19) {
+                        current.hp = Math.min(MAX_HP, current.hp + 100);
+                        addLog(`HP 100을 회복했습니다.`, 'text-blue-300');
+                    }
+                    break;
+                }
+                case "utility_mp_max_increase":
+                case "utility_mp_max_increase_heavy": {
+                    const increase = skill.mp_increase;
+                    const restore = skill.mp_restore;
+                    
+                    current.max_mp += increase;
+                    current.mp = Math.min(current.max_mp, current.mp + restore);
+                    
+                    addLog(`**${skill.name}** 발동! 최대 MP가 영구적으로 ${increase} 증가하여 ${current.max_mp}이(가) 되었습니다. MP ${restore} 회복.`, 'text-blue-300');
+                    break;
+                }
+                case "buff_counter_debuff": {
+                    current.status_effects = current.status_effects.filter(e => e.name !== '파쇄의 카운터');
+                    current.status_effects.push({ name: '파쇄의 카운터', duration: 1, type: 'buff_counter' });
+                    addLog(`1턴 동안 공격을 받을 경우 상대에게 방어력 감소 디버프를 겁니다.`, 'text-green-300');
+                    break;
+                }
+                case "buff_reflect_magic": {
+                    current.status_effects = current.status_effects.filter(e => e.name !== '원소 반사막');
+                    current.status_effects.push({ name: '원소 반사막', duration: 1, type: 'buff_reflect' });
+                    addLog(`1턴 동안 마법 피해(MP 소모 공격)를 100% 반사합니다.`, 'text-green-300');
+                    break;
+                }
+                case "defense_shield_absorb": {
+                    if (current.shield_value === 0) {
+                        current.shield_value = skill.absorb_amount;
+                        current.status_effects = current.status_effects.filter(e => e.name !== '필사의 방패'); 
+                        current.status_effects.push({ name: '필사의 방패', duration: 1, type: 'defense_shield' });
+                        addLog(`300 피해를 흡수하는 실드를 얻었습니다.`, 'text-blue-300');
+                    } else {
+                        addLog(`실드가 이미 존재하여 필사의 방패를 사용할 수 없습니다.`, 'text-yellow-500');
+                        current.mp += calculatedCost; // MP 반환 (필드 효과가 적용된 코스트를 반환)
+                    }
+                    break;
+                }
+                case "defense_damage_cap": {
+                    current.status_effects = current.status_effects.filter(e => e.name !== '궁극의 인내');
+                    current.status_effects.push({ name: '궁극의 인내', duration: 2, type: 'defense_cap' });
+                    addLog(`2턴 동안 받는 피해가 최대 200으로 제한됩니다.`, 'text-green-300');
+                    break;
+                }
+                case "buff_redirect_damage": {
+                    current.status_effects = current.status_effects.filter(e => e.name !== '피해 전환');
+                    current.status_effects.push({ name: '피해 전환', duration: 2, type: 'buff_redirect' });
+                    addLog(`2턴 동안 받는 피해의 50%를 MP로 전환합니다.`, 'text-green-300');
+                    break;
+                }
+                case "buff_evade": {
+                    current.status_effects = current.status_effects.filter(e => e.name !== '환영 분신');
+                    current.status_effects.push({ name: '환영 분신', duration: 1, type: 'buff_evade' });
+                    addLog(`다음 턴 상대의 공격을 50% 확률로 회피합니다.`, 'text-green-300');
+                    break;
+                }
+                case "debuff_mp_steal": {
+                    const stolenMP = 20;
+                    const actualStolen = Math.min(stolenMP, target.mp);
+                    target.mp = Math.max(0, target.mp - actualStolen);
+                    current.mp = Math.min(current.max_mp, current.mp + actualStolen); 
+                    addLog(`${target.name}의 MP ${actualStolen}을(를) 강탈했습니다.`, 'text-indigo-300');
+                    break;
+                }
+                case "heal_cleanse": {
+                    const healReductionEffect = current.status_effects.find(e => e.name === '회복 감소');
+                    let reduction = healReductionEffect ? 0.5 : 1.0;
+
+                    healAmount = Math.floor(MAX_HP * 0.15 * diceModifier * reduction);
+                    current.hp = Math.min(MAX_HP, current.hp + healAmount);
+                    
+                    const hostileIndex = current.status_effects.findIndex(e => e.type.includes('debuff') || e.name === '맹독 주입' || e.name === '턴 스킵 (상대)' || e.name === '방어력 10 감소 (일시적)' || e.name === '회복 감소' || e.name === '회복 봉쇄' || e.name === '급소 노출');
+                    if (hostileIndex !== -1) {
+                        const removedName = current.status_effects[hostileIndex].name;
+                        current.status_effects.splice(hostileIndex, 1);
+                        addLog(`**${removedName}** 디버프가 제거되었습니다.`, 'text-blue-300');
+                    }
+                    addLog(`체력 ${healAmount} 회복.`, 'text-blue-300');
+                    break;
+                }
+                case "cleanse_all": {
+                    const hostileEffects = current.status_effects.filter(e => e.type.includes('debuff') || e.name === '맹독 주입' || e.name === '턴 스킵 (상대)' || e.name === '방어력 10 감소 (일시적)' || e.name === '회복 감소' || e.name === '회복 봉쇄' || e.name === '급소 노출');
+                    hostileEffects.forEach(e => {
+                        addLog(`**${e.name}** 디버프가 제거되었습니다.`, 'text-blue-300');
+                    });
+                    current.status_effects = current.status_effects.filter(e => e.type.includes('buff') || e.name === '필사의 방패'); 
+                    current.mp = Math.min(current.max_mp, current.mp + 10); 
+                    addLog(`모든 해로운 효과를 제거하고 MP 10을 회복했습니다.`, 'text-blue-300');
+                    break;
+                }
+                case "utility": {
+                    const healReductionEffect = current.status_effects.find(e => e.name === '회복 감소');
+                    let reduction = healReductionEffect ? 0.5 : 1.0;
+
+                    healAmount = Math.floor(MAX_HP * 0.05 * diceModifier * reduction); 
+                    current.hp = Math.min(MAX_HP, current.hp + healAmount);
+                    current.mp = Math.min(current.max_mp, current.mp + 30); 
+                    addLog(`체력 ${healAmount} 회복 및 MP 30 증가.`, 'text-blue-300');
+                    break;
+                }
+                case "utility_dice_control": {
+                    current.status_effects = current.status_effects.filter(e => e.name !== '운명 조작'); 
+                    current.status_effects.push({ name: '운명 조작', duration: 1, type: 'buff_dice' });
+                    addLog(`다음 턴의 운명 주사위를 유리하게 조작합니다.`, 'text-indigo-400');
+                    break;
+                }
+                case "utility_transfer_hp_mp": {
+                    const hpCost = Math.floor(current.hp * 0.2);
+                    current.hp -= hpCost;
+                    current.mp = Math.min(current.max_mp, current.mp + hpCost); 
+                    addLog(`HP ${hpCost}를 소모하여 MP ${hpCost}를 얻었습니다.`, 'text-indigo-300');
+                    break;
+                }
+                case "defense_dice": {
+                    current.status_effects = current.status_effects.filter(e => e.name !== '운명 거부'); 
+                    current.status_effects.push({ name: '운명 거부', duration: 1, type: 'buff_negate' });
+                    addLog(`다음 턴에 발동할 운명 주사위 효과를 무시할 준비를 합니다.`, 'text-indigo-400');
+                    break;
+                }
+                case "utility_swap_stats": {
+                    const tempHp = current.hp;
+                    current.hp = target.hp;
+                    target.hp = tempHp;
+                    addLog(`**역전의 기회** 발동! ${current.name}과 ${target.name}의 HP가 서로 맞바뀌었습니다.`, 'text-red-600');
+                    break;
+                }
+            }
+        }
+        
+        // 턴 종료 및 플레이어 전환
+        currentPlayerIndex = 1 - currentPlayerIndex;
+        
+        // 다음 턴 시작 (딜레이 없이 바로)
+        if (players[0].hp > 0 && players[1].hp > 0) {
+            startTurn();
+        } else {
+            endGame();
+        }
+    }
+
+
+    // --- 게임 시작 ---
+    window.onload = () => {
+        // Initial player setup (names only)
+        players = [
+            { id: 0, name: '플레이어 1', hp: MAX_HP, mp: BASE_MAX_MP, max_mp: BASE_MAX_MP, base_attack: BASE_ATTACK, defense: 10, selected_skills: [], status_effects: [], shield_value: 0 },
+            { id: 1, name: '플레이어 2', hp: MAX_HP, mp: BASE_MAX_MP, max_mp: BASE_MAX_MP, base_attack: BASE_ATTACK, defense: 10, selected_skills: [], status_effects: [], shield_value: 0 }
+        ];
+
+        renderSkillSelection();
+        updateUI(); 
+    };
+</script>
+</body>
+</html>
